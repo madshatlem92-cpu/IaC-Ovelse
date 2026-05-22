@@ -8,7 +8,11 @@ on:
 jobs:
   login:
     runs-on: ubuntu-latest
-
+    
+    permissions:
+      id-token: write
+      contents: read
+      
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -20,5 +24,26 @@ jobs:
         tenant-id: ${{ vars.AZURE_TENANT_ID }}
         subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
-    - name: Show account
-      run: az account show
+    - name: Load Key Vault secrets
+      run: |
+        RG_NAME=$(az keyvault secret show --vault-name "mads-iac-kv" --name "rg-name" --query value -o tsv)
+        LOCATION=$(az keyvault secret show --vault-name "mads-iac-kv" --name "location" --query value -o tsv)
+        ENVIRONMENT=$(az keyvault secret show --vault-name "mads-iac-kv" --name "env" --query value -o tsv)
+
+        echo "TF_VAR_resource_group_name=$RG_NAME" >> $GITHUB_ENV
+        echo "TF_VAR_location=$LOCATION" >> $GITHUB_ENV
+        echo "TF_VAR_environment=$ENVIRONMENT" >> $GITHUB_ENV
+       
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.7.5
+
+    - name: Terraform init
+      run: terraform init
+
+    - name: Terraform plan
+      run: terraform plan
+
+    - name: Terraform apply
+      run: terraform apply -auto-approve
